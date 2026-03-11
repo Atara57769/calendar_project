@@ -1,72 +1,66 @@
 from typing import List
 from datetime import time, timedelta, datetime
-from service.data_service import get_busy_times
+
+from models.event_model import Event
+
+DAY_START = time(7, 0)
+DAY_END = time(19, 0)
 
 
-def find_available_slots(person_list: List[str], event_duration: timedelta) -> List[time]:
+class CalendarService:
 
-    events = get_busy_times(person_list)
+    def __init__(self, data_service):
+        self.data_service = data_service
 
 
+    def get_busy_times(self, person_list: list[str]):
 
-    day_start = time(7, 0)
-    day_end = time(19, 0)
+        entries = self.data_service.get_data()
 
-    if not events:
-        return [day_start]
+        return [
+            Event(e.start_time, e.end_time)
+            for e in entries
+            if e.person in person_list
+        ]
 
-    events.sort(key=lambda e: e.start_time)
+    def find_available_slots(self, person_list: List[str], event_duration: timedelta) -> List[time]:
 
-    available = []
+        events = self.get_busy_times(person_list)
 
-    # convert helper
-    today = datetime.today()
+        if not events:
+            return [DAY_START]
 
-    # קודם נבדוק זמן לפני האירוע הראשון
-    if events:
-        start_dt = datetime.combine(today, day_start)
-        first_dt = datetime.combine(today, events[0].start_time)
+        events.sort(key=lambda e: e.start_time)
 
-        if first_dt - start_dt >= event_duration:
-            available.append(day_start)
+        # merge overlapping events
+        merged = []
+        for event in events:
+            if not merged or event.start_time > merged[-1].end_time:
+                merged.append(event)
+            else:
+                merged[-1].end_time = max(merged[-1].end_time, event.end_time)
 
-    # merge intervals
-    merged = []
+        today = datetime.today()
 
-    for event in events:
-        if not merged:
-            merged.append(event)
-            continue
+        available = []
 
-        last = merged[-1]
+        prev_end = DAY_START
 
-        if event.start_time <= last.end_time:
-            last.end_time = max(last.end_time, event.end_time)
-        else:
-            merged.append(event)
+        for event in merged:
 
-    # gaps בין אירועים
-    for i in range(len(merged) - 1):
+            gap_start = datetime.combine(today, prev_end)
+            gap_end = datetime.combine(today, event.start_time)
 
-        end_current = merged[i].end_time
-        start_next = merged[i + 1].start_time
+            if gap_end - gap_start >= event_duration:
+                available.append(prev_end)
 
-        end_dt = datetime.combine(today, end_current)
-        next_dt = datetime.combine(today, start_next)
+            prev_end = event.end_time
 
-        if next_dt - end_dt >= event_duration:
-            available.append(end_current)
+        # gap after last event
+        last_gap_start = datetime.combine(today, prev_end)
+        day_end_dt = datetime.combine(today, DAY_END)
 
-    # אחרי האירוע האחרון
-    if merged:
+        if day_end_dt - last_gap_start >= event_duration:
+            available.append(prev_end)
 
-        last_end = merged[-1].end_time
-
-        last_dt = datetime.combine(today, last_end)
-        day_end_dt = datetime.combine(today, day_end)
-
-        if day_end_dt - last_dt >= event_duration:
-            available.append(last_end)
-            available.append(day_end)
-
-    return available
+        return available

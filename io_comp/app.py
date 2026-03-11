@@ -1,25 +1,23 @@
 """
 This is the App entry point
 """
-import sys
 from datetime import timedelta
 
-from service.calendar_service import find_available_slots
-from service.data_service import get_data
+from service.calendar_service import  CalendarService
+from service.data_service import DataService
 
 
 def main():
     """Main entry point for the application"""
-    print("\n\n")
-    print("Your goal is to design and create a simple Calendar in Python. You can replace this main function with your own code.")
-    print("Please see README.md")
-    p=find_available_slots(
-    ["Alice", "Jack"],
-    timedelta(minutes=60)
-)
-    for person in p:
-        print(person)
-    sys.exit(1)
+    data_service = DataService()
+    calendar_service = CalendarService(data_service)
+
+    slots = calendar_service.find_available_slots(
+        ["Alice", "Jack"],
+        timedelta(hours=1)
+    )
+
+    print(slots)
 
 
 if __name__ == "__main__":
