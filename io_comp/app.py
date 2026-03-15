@@ -1,23 +1,36 @@
 """
 This is the App entry point
 """
+import logging
 from datetime import timedelta
 
-from service.calendar_service import  CalendarService
-from service.data_service import DataService
+from repositories.calendar_repository_csv import CalendarRepositoryCsv
+from service.calendar_service import CalendarService
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
 def main():
     """Main entry point for the application"""
-    data_service = DataService()
-    calendar_service = CalendarService(data_service)
+    logger.info("Starting calendar slot finder app")
+    calendar_repo = CalendarRepositoryCsv()
+    calendar_service = CalendarService(calendar_repo)
 
-    slots = calendar_service.find_available_slots(
-        ["Alice", "Jack"],
-        timedelta(hours=1)
-    )
-
-    print(slots)
+    try:
+        slots = calendar_service.find_available_slots(
+            ["Alice", "Jack"],
+            timedelta(hours=1)
+        )
+        logger.info("Available slots: %s", slots)
+        print(slots)
+    except Exception as err:
+        logger.error("Application error: %s", err)
+        raise
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from datetime import time
 from dataclasses import dataclass
 
-@dataclass
+@dataclass(frozen=True)
 class ScheduleEntry:
     person: str
     title: str
