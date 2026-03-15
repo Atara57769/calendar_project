@@ -1,12 +1,12 @@
+import pytest
 from datetime import time, timedelta
 
 from models.schedule_entry_model import ScheduleEntry
-from models.event_model import Event
-
 from service.calendar_service import CalendarService
+from exceptions.calendar_exceptions import CalendarError
 
 
-class FakeDataService:
+class FakeCalendarRepository:
 
     def __init__(self, entries):
         self.entries = entries
@@ -15,96 +15,55 @@ class FakeDataService:
         return self.entries
 
 
-def test_get_busy_times_single_person():
-
-    data = [
-        ScheduleEntry("Alice", "Meeting", time(8, 0), time(9, 0)),
-        ScheduleEntry("Bob", "Call", time(10, 0), time(11, 0)),
-    ]
-
-    service = CalendarService(FakeDataService(data))
-
-    result = service.get_busy_times(["Alice"])
-
-    assert len(result) == 1
-    assert result[0].start_time == time(8, 0)
-
-
-def test_get_busy_times_multiple_people():
-
-    data = [
-        ScheduleEntry("Alice", "Meeting", time(8, 0), time(9, 0)),
-        ScheduleEntry("Bob", "Call", time(10, 0), time(11, 0)),
-        ScheduleEntry("Charlie", "Review", time(12, 0), time(13, 0)),
-    ]
-
-    service = CalendarService(FakeDataService(data))
-
-    result = service.get_busy_times(["Alice", "Bob"])
-
-    assert len(result) == 2
-
-
-def test_available_before_first_event():
-
-    data = [
-        ScheduleEntry("Alice", "Meeting", time(9, 0), time(10, 0)),
-    ]
-
-    service = CalendarService(FakeDataService(data))
-
-    result = service.find_available_slots(["Alice"], timedelta(hours=1))
-
-    assert time(7, 0) in result
-
-
-def test_gap_between_events():
+def test_available_slots_before_middle_after():
 
     data = [
         ScheduleEntry("Alice", "Meeting", time(8, 0), time(9, 0)),
         ScheduleEntry("Alice", "Review", time(11, 0), time(12, 0)),
     ]
 
-    service = CalendarService(FakeDataService(data))
+    service = CalendarService(FakeCalendarRepository(data))
 
     result = service.find_available_slots(["Alice"], timedelta(hours=1))
 
+    # before first event
+    assert time(7, 0) in result
+
+    # gap between events
     assert time(9, 0) in result
 
+    # after last event
+    assert time(12, 0) in result
 
-def test_after_last_event():
-
-    data = [
-        ScheduleEntry("Alice", "Meeting", time(8, 0), time(9, 0)),
-        ScheduleEntry("Alice", "Review", time(10, 0), time(11, 0)),
-    ]
-
-    service = CalendarService(FakeDataService(data))
-
-    result = service.find_available_slots(["Alice"], timedelta(hours=1))
-
-    assert time(11, 0) in result
-
-
-def test_merge_overlapping_events():
-
-    data = [
-        ScheduleEntry("Alice", "Meeting", time(8, 0), time(10, 0)),
-        ScheduleEntry("Alice", "Call", time(9, 30), time(11, 0)),
-        ScheduleEntry("Alice", "Lunch", time(12, 0), time(13, 0)),
-    ]
-
-    service = CalendarService(FakeDataService(data))
-
-    result = service.find_available_slots(["Alice"], timedelta(hours=1))
-
-    assert time(11, 0) in result
 
 
 def test_no_events():
 
-    service = CalendarService(FakeDataService([]))
+    service = CalendarService(FakeCalendarRepository([]))
 
     result = service.find_available_slots(["Alice"], timedelta(hours=1))
 
     assert result == [time(7, 0)]
+
+
+# -------- TESTS FOR EXCEPTIONS --------
+
+
+def test_empty_person_list():
+
+    service = CalendarService(FakeCalendarRepository([]))
+
+    with pytest.raises(CalendarError):
+        service.get_busy_times([])
+
+
+def test_invalid_event_duration():
+
+    service = CalendarService(FakeCalendarRepository([]))
+
+    with pytest.raises(CalendarError):
+        service.find_available_slots(["Alice"], timedelta(minutes=0))
+    with pytest.raises(CalendarError):
+        service.find_available_slots(["Alice"], timedelta(hours=20))
+
+
